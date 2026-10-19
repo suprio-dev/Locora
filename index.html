@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Locora — Location Finder</title>
+
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="index.css">
+  <link
+    href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=IBM+Plex+Mono:wght@400;500&display=swap"
+    rel="stylesheet" />
+
+  <style>
+    
+    :root,
+    html.dark {
+      --bg: #08151d;
+      --bg-2: #0d1f2b;
+      --card: rgba(18, 38, 52, .72);
+      --field: rgba(255, 255, 255, .045);
+      --line: rgba(160, 205, 225, .14);
+      --text: #eaf4f8;
+      --muted: #8fa9b7;
+      --faint: #5f7a89;
+      --accent: #ffa24a;
+      --accent-ink: #2a1500;
+      --signal: #4fe0c0;
+      --contour: rgba(120, 190, 215, .10);
+      --shadow: 0 24px 60px -24px rgba(0, 0, 0, .6);
+      --map-filter: invert(.92) hue-rotate(180deg) saturate(.55) brightness(.9) contrast(.95);
+    }
+
+    html.light,
+    html:not(.dark) {
+      --bg: #f3efe6;
+      --bg-2: #ebe6d9;
+      --card: rgba(255, 255, 255, .78);
+      --field: rgba(20, 40, 50, .045);
+      --line: rgba(20, 50, 65, .14);
+      --text: #13262f;
+      --muted: #4f6772;
+      --faint: #7d939d;
+      --accent: #e26a14;
+      --accent-ink: #fff;
+      --signal: #0d9e82;
+      --contour: rgba(30, 90, 110, .11);
+      --shadow: 0 24px 50px -28px rgba(30, 60, 70, .35);
+      --map-filter: none;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      font-family: "Bricolage Grotesque", system-ui, sans-serif;
+      background: linear-gradient(180deg, var(--bg) 0%, var(--bg-2) 100%) fixed;
+      color: var(--text);
+      transition: background .4s, color .4s;
+      overflow-x: hidden;
+    }
+
+    .mono {
+      font-family: "IBM Plex Mono", ui-monospace, monospace;
+    }
+
+    /* Topographic contour backdrop */
+    .contours {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+      color: var(--contour);
+    }
+
+    .contours svg {
+      width: 100%;
+      height: 100%;
+    }
+
+    main,
+    nav,
+    footer {
+      position: relative;
+      z-index: 1;
+    }
+
+    /* ---------- Surfaces ---------- */
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+    }
+
+    .field {
+      background: var(--field);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: .8rem .95rem;
+      transition: border-color .2s, background .2s;
+    }
+
+    .field:hover {
+      border-color: color-mix(in srgb, var(--signal) 45%, transparent);
+    }
+
+    .field>p:first-child {
+      font-size: .72rem;
+      color: var(--muted);
+      letter-spacing: .01em;
+    }
+
+    .field>p:last-child {
+      margin-top: .3rem;
+      font-size: .92rem;
+      font-weight: 500;
+      color: var(--text);
+    }
+
+    .group-title {
+      display: flex;
+      align-items: center;
+      gap: .6rem;
+      font-size: .95rem;
+      font-weight: 700;
+      margin-bottom: .85rem;
+    }
+
+    .group-title i {
+      display: grid;
+      place-items: center;
+      width: 30px;
+      height: 30px;
+      border-radius: 9px;
+      font-size: .8rem;
+      background: color-mix(in srgb, var(--signal) 16%, transparent);
+      color: var(--signal);
+    }
+
+    /* ---------- Hero ---------- */
+    .headline {
+      font-size: clamp(2.8rem, 9vw, 6rem);
+      line-height: .95;
+      letter-spacing: -.035em;
+      font-weight: 800;
+      font-variation-settings: "opsz" 96;
+    }
+
+    .headline em {
+      font-style: normal;
+      display: inline-block;
+      color: transparent;
+      background: linear-gradient(100deg, var(--accent), var(--signal));
+      -webkit-background-clip: text;
+      background-clip: text;
+    }
+
+    /* ---------- Locate button + sonar ---------- */
+    .sonar {
+      position: relative;
+      flex: none;
+      width: 64px;
+      height: 64px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      background: color-mix(in srgb, var(--signal) 14%, transparent);
+      color: var(--signal);
+      font-size: 1.5rem;
+    }
+
+    .sonar::before,
+    .sonar::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      border: 1.5px solid var(--signal);
+      animation: ping 2.6s cubic-bezier(.2, .6, .3, 1) infinite;
+    }
+
+    .sonar::after {
+      animation-delay: 1.3s;
+    }
+
+    @keyframes ping {
+      0% {
+        transform: scale(1);
+        opacity: .7;
+      }
+
+      100% {
+        transform: scale(2.3);
+        opacity: 0;
+      }
+    }
+
+    #locate-btn {
+      background: var(--accent);
+      color: var(--accent-ink);
+      border-radius: 16px;
+      box-shadow: 0 14px 30px -14px var(--accent);
+    }
+
+    #locate-btn:hover {
+      filter: brightness(1.08);
+      transform: translateY(-1px);
+    }
+
+    #locate-btn:active {
+      transform: translateY(0) scale(.99);
+    }
+
+    #locate-btn:focus-visible,
+    #theme-toggle:focus-visible+span {
+      outline: 2px solid var(--signal);
+      outline-offset: 3px;
+    }
+
+    /* ---------- Coordinate readout ---------- */
+    .readout {
+      font-family: "IBM Plex Mono", ui-monospace, monospace;
+      font-size: clamp(1.8rem, 5vw, 2.8rem);
+      font-weight: 500;
+      letter-spacing: -.03em;
+      line-height: 1.1;
+      color: var(--text);
+    }
+
+    /* ---------- Theme switch ---------- */
+    .switch-track {
+      position: relative;
+      width: 44px;
+      height: 24px;
+      border-radius: 99px;
+      background: var(--faint);
+      transition: background .25s;
+    }
+
+    .switch-track::after {
+      content: "";
+      position: absolute;
+      top: 3px;
+      left: 3px;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: #fff;
+      transition: transform .25s;
+    }
+
+    #theme-toggle:checked+.switch-track {
+      background: var(--signal);
+    }
+
+    #theme-toggle:checked+.switch-track::after {
+      transform: translateX(20px);
+    }
+
+    /* ---------- Map ---------- */
+    #map {
+      height: 440px;
+      width: 100%;
+      background: var(--bg-2);
+    }
+
+    #map .leaflet-tile-pane {
+      filter: var(--map-filter);
+      transition: filter .4s;
+    }
+
+    .leaflet-container {
+      font-family: inherit;
+    }
+
+    .leaflet-popup-content-wrapper,
+    .leaflet-popup-tip {
+      background: var(--bg-2);
+      color: var(--text);
+      border: 1px solid var(--line);
+    }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: .45rem;
+      padding: .3rem .7rem;
+      border-radius: 99px;
+      font-size: .75rem;
+      font-weight: 600;
+      color: var(--signal);
+      background: color-mix(in srgb, var(--signal) 14%, transparent);
+      border: 1px solid color-mix(in srgb, var(--signal) 30%, transparent);
+    }
+
+    .chip::before {
+      content: "";
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+
+      .sonar::before,
+      .sonar::after {
+        animation: none;
+        opacity: .35;
+      }
+
+      * {
+        transition: none !important;
+      }
+    }
+  </style>
+</head>
+
+<body class="min-h-screen">
+
+  <div id="loadingOverlay" class="fixed inset-0 z-[9999] hidden items-center justify-center
+         bg-slate-950/50 backdrop-blur-md">
+    <div class="earth">
+      <div class="earth-loader">
+
+        <!-- From Uiverse.io by Novaxlo -->
+        <div class="earth">
+          <div class="earth-loader">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+              <path transform="translate(100 100)"
+                d="M29.4,-17.4C33.1,1.8,27.6,16.1,11.5,31.6C-4.7,47,-31.5,63.6,-43,56C-54.5,48.4,-50.7,16.6,-41,-10.9C-31.3,-38.4,-15.6,-61.5,-1.4,-61C12.8,-60.5,25.7,-36.5,29.4,-17.4Z"
+                fill="#7CC133"></path>
+            </svg>
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+              <path transform="translate(100 100)"
+                d="M31.7,-55.8C40.3,-50,45.9,-39.9,49.7,-29.8C53.5,-19.8,55.5,-9.9,53.1,-1.4C50.6,7.1,43.6,14.1,41.8,27.6C40.1,41.1,43.4,61.1,37.3,67C31.2,72.9,15.6,64.8,1.5,62.2C-12.5,59.5,-25,62.3,-31.8,56.7C-38.5,51.1,-39.4,37.2,-49.3,26.3C-59.1,15.5,-78,7.7,-77.6,0.2C-77.2,-7.2,-57.4,-14.5,-49.3,-28.4C-41.2,-42.4,-44.7,-63,-38.5,-70.1C-32.2,-77.2,-16.1,-70.8,-2.3,-66.9C11.6,-63,23.1,-61.5,31.7,-55.8Z"
+                fill="#7CC133"></path>
+            </svg>
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+              <path transform="translate(100 100)"
+                d="M30.6,-49.2C42.5,-46.1,57.1,-43.7,67.6,-35.7C78.1,-27.6,84.6,-13.8,80.3,-2.4C76.1,8.9,61.2,17.8,52.5,29.1C43.8,40.3,41.4,53.9,33.7,64C26,74.1,13,80.6,2.2,76.9C-8.6,73.1,-17.3,59,-30.6,52.1C-43.9,45.3,-61.9,45.7,-74.1,38.2C-86.4,30.7,-92.9,15.4,-88.6,2.5C-84.4,-10.5,-69.4,-20.9,-60.7,-34.6C-52.1,-48.3,-49.8,-65.3,-40.7,-70C-31.6,-74.8,-15.8,-67.4,-3.2,-61.8C9.3,-56.1,18.6,-52.3,30.6,-49.2Z"
+                fill="#7CC133"></path>
+            </svg>
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+              <path transform="translate(100 100)"
+                d="M39.4,-66C48.6,-62.9,51.9,-47.4,52.9,-34.3C53.8,-21.3,52.4,-10.6,54.4,1.1C56.3,12.9,61.7,25.8,57.5,33.2C53.2,40.5,39.3,42.3,28.2,46C17,49.6,8.5,55.1,1.3,52.8C-5.9,50.5,-11.7,40.5,-23.6,37.2C-35.4,34,-53.3,37.5,-62,32.4C-70.7,27.4,-70.4,13.7,-72.4,-1.1C-74.3,-15.9,-78.6,-31.9,-73.3,-43C-68.1,-54.2,-53.3,-60.5,-39.5,-60.9C-25.7,-61.4,-12.9,-56,1.1,-58C15.1,-59.9,30.2,-69.2,39.4,-66Z"
+                fill="#7CC133"></path>
+            </svg>
+          </div>
+
+        </div>
+
+
+      </div>
+
+      <p>Retrieving GPS coordinates...</p>
+    </div>
+  </div>
+  <!-- Contour lines backdrop -->
+  <div class="contours" aria-hidden="true">
+    <svg viewBox="0 0 1200 800" preserveAspectRatio="xMidYMid slice" fill="none" stroke="currentColor"
+      stroke-width="1.2">
+      <g transform="translate(900 220)">
+        <ellipse rx="60" ry="38" />
+        <ellipse rx="120" ry="78" />
+        <ellipse rx="185" ry="120" />
+        <ellipse rx="255" ry="165" />
+        <ellipse rx="330" ry="215" />
+        <ellipse rx="410" ry="268" />
+        <ellipse rx="495" ry="325" />
+      </g>
+      <g transform="translate(150 700) rotate(-12)">
+        <ellipse rx="50" ry="30" />
+        <ellipse rx="105" ry="64" />
+        <ellipse rx="165" ry="100" />
+        <ellipse rx="230" ry="140" />
+        <ellipse rx="300" ry="185" />
+      </g>
+    </svg>
+  </div>
+
+  <div class="mx-auto max-w-6xl px-5 py-6 sm:px-8">
+
+    <!-- Navbar -->
+    <nav class="mb-14 flex items-center justify-between">
+      <a href="#" class="flex items-center gap-3">
+        <span class="grid size-11 place-items-center rounded-2xl text-xl font-bold"
+          style="background: var(--accent); color: var(--accent-ink);">✳</span>
+        <span>
+          <span class="block text-xl font-extrabold leading-none tracking-wide">Locora</span>
+          <span class="mt-1 block text-xs tracking-normal" style="color: var(--muted);">Your world, located</span>
+        </span>
+      </a>
+
+      <label class="card flex cursor-pointer items-center gap-2.5 !rounded-full px-4 py-2 !shadow-none">
+        <span id="theme-icon" class="fa-solid fa-moon" aria-hidden="true"></span>
+        <span id="theme" class="text-sm font-medium">Dark</span>
+        <input id="theme-toggle" type="checkbox" class="peer sr-only" aria-label="Toggle dark mode" checked />
+        <span class="switch-track"></span>
+      </label>
+    </nav>
+
+    <main>
+      <!-- Hero -->
+      <header class="mb-12">
+        <h1 class="headline mb-5 tracking-wide">
+          Find your<br /><em>place.</em>
+        </h1>
+        <p class="max-w-md text-lg leading-8 tracking-normal" style="color: var(--muted);">
+          See your exact coordinates, your address and the map around you, all in one tap.
+        </p>
+      </header>
+
+      <!-- Location card -->
+      <section class="card mb-5 p-6 sm:p-8">
+        <div class="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
+          <div class="flex items-center gap-5">
+            <div class="sonar">📍</div>
+            <div>
+              <h2 id="currentLocation" class="text-xl font-bold tracking-tight">Your current location</h2>
+              <p id="status" role="status" aria-live="polite" class="mt-1 text-sm" style="color: var(--muted);">
+                Ready when you are
+              </p>
+            </div>
+          </div>
+
+          <div class="sm:text-right">
+            <button id="locate-btn" class="w-full cursor-pointer px-7 py-4 text-base font-bold transition sm:w-auto">
+              ⌖ &nbsp; Detect my location
+            </button>
+            <p class="mt-2.5 text-xs" style="color: var(--faint);">
+              Click to view your location.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Coordinates -->
+      <section class="mb-5 grid gap-5 sm:grid-cols-2">
+        <article class="card p-6">
+          <p class="mb-4 flex items-center gap-2 text-sm font-semibold" style="color: var(--muted);">
+            <i class="fa-solid fa-arrows-up-down" style="color: var(--accent);"></i> Latitude
+          </p>
+          <p id="latitude" class="readout">—</p>
+          <p class="mt-3 text-sm" style="color: var(--faint);">North / South</p>
+        </article>
+
+        <article class="card p-6">
+          <p class="mb-4 flex items-center gap-2 text-sm font-semibold" style="color: var(--muted);">
+            <i class="fa-solid fa-arrows-left-right" style="color: var(--accent);"></i> Longitude
+          </p>
+          <p id="longitude" class="readout">—</p>
+          <p class="mt-3 text-sm" style="color: var(--faint);">East / West</p>
+        </article>
+      </section>
+
+      <!-- Location Details -->
+      <div id="location-details" class="hidden card mb-5 overflow-hidden">
+        <div class="flex items-center justify-between gap-3 border-b px-6 py-5" style="border-color: var(--line);">
+          <div class="flex items-center gap-3">
+            <div class="grid size-11 place-items-center rounded-xl text-lg"
+              style="background: color-mix(in srgb, var(--signal) 15%, transparent); color: var(--signal);">
+              <i class="fa-solid fa-map-location-dot"></i>
+            </div>
+            <div>
+              <h3 class="text-base font-bold">Location details</h3>
+              <p class="mt-0.5 text-xs" style="color: var(--muted);">What the map knows about this spot</p>
+            </div>
+          </div>
+
+          <button id="toggle-details" type="button"
+            class="inline-flex shrink-0 items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold transition hover:-translate-y-0.5"
+            style="
+    border-color: var(--line);
+    background: var(--field);
+    color: var(--signal);
+  ">
+            <i class="fa-solid fa-eye"></i>
+            <span>Unhide details</span>
+          </button>
+
+        </div>
+
+        <div class="space-y-8 p-6">
+
+          <!-- Address -->
+          <section class="hidden" id="address">
+            <h4 class="group-title"><i class="fa-solid fa-location-dot"></i> Address</h4>
+            <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <div class="field">
+                <p>City / Town / Village</p>
+                <p id="detail-city" class="break-words">—</p>
+              </div>
+              <div class="field">
+                <p>State</p>
+                <p id="detail-state" class="break-words">—</p>
+              </div>
+              <div class="field">
+                <p>Country</p>
+                <p id="detail-country" class="break-words">—</p>
+              </div>
+              <div class="field">
+                <p>Country code</p>
+                <p id="detail-country-code" class="uppercase">—</p>
+              </div>
+              <div class="field">
+                <p>Postcode</p>
+                <p id="detail-postcode">—</p>
+              </div>
+              <div class="field">
+                <p>County</p>
+                <p id="detail-county" class="break-words">—</p>
+              </div>
+              <div class="field">
+                <p>Municipality</p>
+                <p id="detail-municipality" class="break-words">—</p>
+              </div>
+              <div class="field">
+                <p>State district</p>
+                <p id="detail-district" class="break-words">—</p>
+              </div>
+
+              <div class="field sm:col-span-2 lg:col-span-3">
+                <p>Full address</p>
+                <p id="detail-display-name" class="break-words leading-relaxed">—</p>
+              </div>
+            </div>
+          </section>
+
+
+          <!-- Map metadata -->
+          <section class="hidden" id="metadata">
+            <h4 class="group-title"><i class="fa-solid fa-database"></i> Map metadata</h4>
+            <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <div class="field">
+                <p>Address type</p>
+                <p id="detail-addresstype" class="break-words">—</p>
+              </div>
+              <div class="field">
+                <p>Category</p>
+                <p id="detail-category" class="break-words">—</p>
+              </div>
+              <div class="field">
+                <p>Place type</p>
+                <p id="detail-type" class="break-words">—</p>
+              </div>
+              <div class="field">
+                <p>Place name</p>
+                <p id="detail-name" class="break-words">—</p>
+              </div>
+
+
+
+              <div class="field">
+                <p>Place rank</p>
+                <p id="detail-place-rank">—</p>
+              </div>
+
+            </div>
+          </section>
+
+          <p id="locoraFooter" class="hidden border-t pt-4 text-xs leading-relaxed"
+            style="border-color: var(--line); color: var(--faint);">
+            © Locora · Explore your world
+          </p>
+        </div>
+      </div>
+
+      <!-- Map -->
+      <section class="card overflow-hidden">
+        <div class="flex items-center justify-between gap-3 p-6">
+          <div>
+            <h2 class="text-xl font-bold tracking-tight">Explore the map</h2>
+
+            <p class="mt-1 text-sm" style="color: var(--muted);">Drag, zoom and look around.</p>
+          </div>
+          <span class="chip">Interactive</span>
+        </div>
+        <div id="map" class="z-0"></div>
+      </section>
+    </main>
+
+    <footer class="py-10 text-center text-xs" style="color: var(--faint);">
+      Locora · Location access is always your choice.
+    </footer>
+
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="index.js"></script>
+</body>
+
+</html>
