@@ -27,9 +27,6 @@ let theme = document.querySelector("#theme");
 let locoraFooter = document.querySelector("#locoraFooter");
 let loadingOverlay = document.querySelector("#loadingOverlay");
 let currentLocation = document.querySelector("#currentLocation");
-let isClicked = false;
-let themeCounter = 0;
-let counter = 0;
 
 // location-access denied
 
@@ -161,17 +158,30 @@ function toggleDetailsShow() {
 
 // Theme toggling
 
-themeToggle.addEventListener('click', (e) => {
-  themeCounter++;
-  document.querySelector("html").classList.toggle("dark");
-  if (themeCounter % 2 !== 0) {
-    themeIcon.classList.remove("fa-moon");
-    themeIcon.classList.add("fa-sun");
-    theme.textContent = `Light`;
-  } else {
-    themeIcon.classList.add("fa-moon");
+function themeChange(){
+  if(!localStorage.getItem("theme")){
+         localStorage.setItem("theme","dark");
+  document.querySelector("html").classList.add("dark");
+  themeIcon.classList.add("fa-moon");
     themeIcon.classList.remove("fa-sun");
     theme.textContent = `Dark`;
+    return;
   }
 
-})
+if(localStorage.getItem("theme")==="dark"){
+   document.querySelector("html").classList.add("dark");
+  themeIcon.classList.add("fa-moon");
+    themeIcon.classList.remove("fa-sun");
+    theme.textContent = `Dark`;
+}
+
+if(localStorage.getItem("theme")==="light"){
+  document.querySelector("html").classList.remove("dark");
+   themeIcon.classList.remove("fa-moon");
+    themeIcon.classList.add("fa-sun");
+    theme.textContent = `Light`;
+}
+
+}
+
+themeChange();
