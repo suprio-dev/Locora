@@ -158,6 +158,25 @@ function toggleDetailsShow() {
 
 // Theme toggling
 
+themeToggle.addEventListener('click', (e) => {
+ if(localStorage.getItem("theme")==="dark"){
+   document.querySelector("html").classList.remove("dark");
+   themeIcon.classList.remove("fa-moon");
+    themeIcon.classList.add("fa-sun");
+    theme.textContent = `Light`;
+    themeToggle.checked=false;
+    localStorage.setItem("theme","light");
+ }else{
+  document.querySelector("html").classList.add("dark");
+  themeIcon.classList.add("fa-moon");
+    themeIcon.classList.remove("fa-sun");
+    theme.textContent = `Dark`;
+    localStorage.setItem("theme","dark");
+    themeToggle.checked=true;
+ }
+})
+
+
 function themeChange(){
   if(!localStorage.getItem("theme")){
          localStorage.setItem("theme","dark");
@@ -165,6 +184,7 @@ function themeChange(){
   themeIcon.classList.add("fa-moon");
     themeIcon.classList.remove("fa-sun");
     theme.textContent = `Dark`;
+    themeToggle.checked=true;
     return;
   }
 
@@ -173,6 +193,7 @@ if(localStorage.getItem("theme")==="dark"){
   themeIcon.classList.add("fa-moon");
     themeIcon.classList.remove("fa-sun");
     theme.textContent = `Dark`;
+    themeToggle.checked=true;
 }
 
 if(localStorage.getItem("theme")==="light"){
@@ -180,6 +201,7 @@ if(localStorage.getItem("theme")==="light"){
    themeIcon.classList.remove("fa-moon");
     themeIcon.classList.add("fa-sun");
     theme.textContent = `Light`;
+    themeToggle.checked=false;
 }
 
 }
