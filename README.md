@@ -17,6 +17,7 @@ Locora is a web-based location exploration project built with HTML, Tailwind CSS
 - Responsive layout for different screen sizes
 - Tailwind CSS utility classes for styling
 - Event listeners for handling user interactions
+- Persistent theme toggle with localStorage to save user preference across sessions
 
 ---
 
